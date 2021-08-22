@@ -33,7 +33,7 @@ job "faas-nomadd" {
           "-node_addr", "${NOMAD_IP_http}",
           "-basic_auth_secret_path", "/secrets",
           "-enable_basic_auth=false",
-          "-enable_nomad_tls=true",
+          "-enable_nomad_tls=false",
           "-nomad_tls_skip_verify"
         ]
 
@@ -95,10 +95,11 @@ EOH
       }
 
       config {
-        image = "openfaas/gateway:0.9.14"
+        image = "openfaas/gateway:0.20.3"
 
         port_map {
           http = 8080
+          metrics = 8082
         }
       }
 
@@ -110,7 +111,11 @@ EOH
           mbits = 10
 
           port "http" {
-            static = 8080
+            static = 10080
+          }
+
+          port "metrics" {
+            static = 8082
           }
         }
       }
@@ -120,16 +125,22 @@ EOH
         name = "gateway"
         tags = ["faas"]
       }
+
+      service {
+        port = "metrics"
+        name = "gateway-metrics"
+        tags = ["faas"]
+      }
     }
 
     task "statsd" {
       driver = "docker"
 
       config {
-        image = "prom/statsd-exporter:v0.4.0"
+        image = "prom/statsd-exporter:v0.21.0"
 
         args = [
-          "-log.level=debug",
+          "--log.level=debug",
         ]
       }
 
@@ -178,9 +189,9 @@ EOH
 
     task "nats" {
       driver = "docker"
-      
+
       config {
-        image = "nats-streaming:0.11.2-linux"
+        image = "nats-streaming:latest"
 
         args = [
           "-store", "file", "-dir", "/tmp/nats",

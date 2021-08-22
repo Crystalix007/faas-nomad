@@ -2,7 +2,7 @@ job "faas-monitoring" {
   datacenters = ["dc1"]
 
   type = "service"
-  
+
   constraint {
     attribute = "${attr.cpu.arch}"
     operator  = "!="
@@ -19,11 +19,17 @@ job "faas-monitoring" {
       mode     = "delay"
     }
 
+		volume "grafana" {
+			type = "host"
+			read_only = false
+			source = "grafana"
+		}
+
     task "alertmanager" {
       driver = "docker"
 
 			artifact {
-			  source      = "https://raw.githubusercontent.com/hashicorp/faas-nomad/master/nomad_job_files/templates/alertmanager.yml"
+			  source      = "https://raw.githubusercontent.com/Crystalix007/faas-nomad/master/nomad_job_files/templates/alertmanager.yml"
 			  destination = "local/alertmanager.yml.tpl"
 				mode        = "file"
 			}
@@ -36,7 +42,7 @@ job "faas-monitoring" {
       }
 
       config {
-        image = "prom/alertmanager:v0.9.1"
+        image = "prom/alertmanager:v0.22.2"
 
         port_map {
           http = 9093
@@ -45,8 +51,8 @@ job "faas-monitoring" {
         dns_servers = ["${NOMAD_IP_http}", "8.8.8.8", "8.8.8.4"]
 
         args = [
-          "-config.file=/etc/alertmanager/alertmanager.yml",
-          "-storage.path=/alertmanager",
+          "--config.file=/etc/alertmanager/alertmanager.yml",
+          "--storage.path=/alertmanager",
         ]
 
         volumes = [
@@ -76,14 +82,14 @@ job "faas-monitoring" {
       driver = "docker"
 
 			artifact {
-			  source      = "https://raw.githubusercontent.com/hashicorp/faas-nomad/master/nomad_job_files/templates/prometheus.yml"
+			  source      = "https://raw.githubusercontent.com/Crystalix007/faas-nomad/master/nomad_job_files/templates/prometheus.yml"
 			  destination = "local/prometheus.yml.tpl"
 				mode        = "file"
 			}
-			
+
 			artifact {
-			  source      = "https://raw.githubusercontent.com/hashicorp/faas-nomad/master/nomad_job_files/templates/alert.rules"
-			  destination = "local/alert.rules.tpl"
+			  source      = "https://raw.githubusercontent.com/Crystalix007/faas-nomad/master/nomad_job_files/templates/alert.rules.yml"
+			  destination = "local/alert.rules.yml.tpl"
 				mode        = "file"
 			}
 
@@ -95,19 +101,18 @@ job "faas-monitoring" {
       }
 
       template {
-        source        = "local/alert.rules.tpl"
-        destination   = "/etc/prometheus/alert.rules"
+        source        = "local/alert.rules.yml.tpl"
+        destination   = "/etc/prometheus/alert.rules.yml"
         change_mode   = "noop"
         change_signal = "SIGINT"
       }
 
       config {
-        image = "prom/prometheus:v1.5.2"
+        image = "prom/prometheus:v2.29.1"
 
         args = [
-          "-config.file=/etc/prometheus/prometheus.yml",
-          "-storage.local.path=/prometheus",
-          "-storage.local.memory-chunks=10000",
+          "--config.file=/etc/prometheus/prometheus.yml",
+          "--storage.tsdb.path=/prometheus",
         ]
 
         dns_servers = ["${NOMAD_IP_http}", "8.8.8.8", "8.8.8.4"]
@@ -118,7 +123,7 @@ job "faas-monitoring" {
 
         volumes = [
           "etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml",
-          "etc/prometheus/alert.rules:/etc/prometheus/alert.rules",
+          "etc/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml",
         ]
       }
 
@@ -154,7 +159,7 @@ job "faas-monitoring" {
       driver = "docker"
 
       config {
-        image = "grafana/grafana:4.6.3"
+        image = "grafana/grafana:8.1.2"
 
         port_map {
           http = 3000
@@ -169,9 +174,15 @@ job "faas-monitoring" {
           mbits = 10
 
           port "http" {
-            static = 3000
+            static = 3001
           }
         }
+      }
+
+      service {
+        port = "http"
+        name = "grafana"
+        tags = ["faas"]
       }
     }
   }
